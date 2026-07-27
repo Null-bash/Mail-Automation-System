@@ -9,6 +9,7 @@ ROLE_PERMISSIONS = {
     "MANAGER": {
         "can_mail": [
             "EMPLOYEE",
+            "MANAGER",
             "CEO"
         ],
         "can_forward": True
