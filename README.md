@@ -256,7 +256,7 @@ pip install -r requirements.txt
 
 export DB_PASSWORD="20031382Ss@"
 
-docker run --name ocimail-postgres \
+docker run --name postgres \
 -e POSTGRES_PASSWORD=20031382Ss@ \
 -p 5431:5432 \
 -d postgres
@@ -321,6 +321,8 @@ receiver_id
 forward_note
 created_date
 mail_id
+sender_deleted
+receiver_deleted
 ```
 
 ---
@@ -382,7 +384,7 @@ This approach is similar to modern mail systems such as Outlook and Gmail.
 ## 📁 Project Structure
 
 ```text
-OCIMAIL/
+backend/
 
 ├── main.py
 ├── requirements.txt
