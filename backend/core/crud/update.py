@@ -3,7 +3,11 @@ from core.db import get_connection
 
 def reply_to_mail(mail_id, current_user_id):
 
-    reply_body = input("\nReply:\n")
+    reply_body = input("\nReply:\n").strip()
+
+    if reply_body == "":
+        print("\nReply cannot be empty!\n")
+        return
 
     conn = get_connection()
     cur = conn.cursor()
@@ -21,6 +25,14 @@ def reply_to_mail(mail_id, current_user_id):
     )
 
     original_mail = cur.fetchone()
+
+    if not original_mail:
+
+        cur.close()
+        conn.close()
+
+        print("\nMail not found!\n")
+        return
 
     receiver_id = original_mail[0]
     original_subject = original_mail[1]

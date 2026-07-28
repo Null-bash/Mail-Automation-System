@@ -1,12 +1,11 @@
 from core.auth.login import login
-from core.auth.jwt_handler import generate_token
 from core.menus.user_menu import user_menu
 
 while True:
 
     print("""
 =================================
-     MAIL AUTOMATION SYSTEM
+            OCIMAIL
 =================================
 
 1. Login
@@ -21,18 +20,20 @@ while True:
 
         if user:
 
-            token = generate_token(user)
 
             session = {
                 "user": user,
-                "token": token
+            }
+            mail_id = {
+                """
+                SELECT mail_id FROM mails"""
             }
 
             print()
             print("Successfully Logged In!")
             print()
 
-            user_menu(session)
+            user_menu(session, mail_id)
 
     elif choice == "2":
 

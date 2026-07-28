@@ -121,6 +121,10 @@ def create_mail(sender_id, sender_role):
     print("\nMail Sent Successfully!")
 
 
+from core.db import get_connection
+from core.permissions.roles import ROLE_PERMISSIONS
+
+
 def forward_mail(mail_id, sender_id, sender_role):
 
     if not ROLE_PERMISSIONS[sender_role]["can_forward"]:
@@ -129,33 +133,25 @@ def forward_mail(mail_id, sender_id, sender_role):
             "\nYou don't have permission "
             "to forward mails!"
         )
-
         return
 
-    receiver_email = input(
-        "\nReceiver Email: "
-    )
+    receiver_email = input("\nReceiver Email: ").strip()
 
     if receiver_email == "":
-
-        print(
-            "\nReceiver Email cannot be empty!"
-        )
-
+        print("\nReceiver Email cannot be empty!")
         return
 
-    forward_note = input(
-        "Forward Note: "
-    )
+    forward_note = input("Forward Note: ")
 
     conn = get_connection()
     cur = conn.cursor()
 
+    # -----------------------------
+    # Find receiver
+    # -----------------------------
     cur.execute(
         """
-        SELECT
-            user_id,
-            role
+        SELECT user_id, role
         FROM users
         WHERE email=%s;
         """,
@@ -166,9 +162,7 @@ def forward_mail(mail_id, sender_id, sender_role):
 
     if not receiver:
 
-        print(
-            "\nReceiver does not exist!"
-        )
+        print("\nReceiver does not exist!")
 
         cur.close()
         conn.close()
@@ -177,6 +171,9 @@ def forward_mail(mail_id, sender_id, sender_role):
     receiver_id = receiver[0]
     receiver_role = receiver[1]
 
+    # -----------------------------
+    # Get original sender
+    # -----------------------------
     cur.execute(
         """
         SELECT sender_id
@@ -188,6 +185,7 @@ def forward_mail(mail_id, sender_id, sender_role):
 
     original_sender_id = cur.fetchone()[0]
 
+    # Rule 1
     if receiver_id == original_sender_id:
 
         print(
@@ -200,20 +198,19 @@ def forward_mail(mail_id, sender_id, sender_role):
         return
 
     # Rule 2
-    if sender_id == receiver_id:
+    if receiver_id == sender_id:
 
         print(
-            "\nYou cannot forward mail to yourself!"
+            "\nYou cannot forward a mail "
+            "to yourself!"
         )
 
         cur.close()
         conn.close()
         return
 
-    # Rule 1
-    if receiver_role not in ROLE_PERMISSIONS[
-        sender_role
-    ]["can_mail"]:
+    # Rule 3
+    if receiver_role not in ROLE_PERMISSIONS[sender_role]["can_mail"]:
 
         print(
             "\nYou don't have permission "
@@ -224,6 +221,57 @@ def forward_mail(mail_id, sender_id, sender_role):
         conn.close()
         return
 
+    # -----------------------------
+    # Get original mail
+    # -----------------------------
+    cur.execute(
+        """
+        SELECT subject, body
+        FROM mails
+        WHERE mail_id=%s;
+        """,
+        (mail_id,)
+    )
+
+    original_mail = cur.fetchone()
+
+    subject = original_mail[0]
+    body = original_mail[1]
+
+    forwarded_subject = f"FWD: {subject}"
+
+    # -----------------------------
+    # Create new mail
+    # -----------------------------
+    cur.execute(
+        """
+        INSERT INTO mails(
+            sender_id,
+            receiver_id,
+            subject,
+            body
+        )
+        VALUES(
+            %s,
+            %s,
+            %s,
+            %s
+        )
+        RETURNING mail_id;
+        """,
+        (
+            sender_id,
+            receiver_id,
+            forwarded_subject,
+            body
+        )
+    )
+
+    new_mail_id = cur.fetchone()[0]
+
+    # -----------------------------
+    # Save forwarding history
+    # -----------------------------
     cur.execute(
         """
         INSERT INTO forwards(
@@ -243,7 +291,7 @@ def forward_mail(mail_id, sender_id, sender_role):
             sender_id,
             receiver_id,
             forward_note,
-            mail_id
+            new_mail_id
         )
     )
 
@@ -252,6 +300,4 @@ def forward_mail(mail_id, sender_id, sender_role):
     cur.close()
     conn.close()
 
-    print(
-        "\nMail Forwarded Successfully!\n"
-    )
+    print("\nMail forwarded successfully!")

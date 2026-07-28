@@ -2,12 +2,11 @@ from core.crud.create import create_mail
 from core.crud.read import inbox
 from core.crud.read import sent_mails
 from core.auth.logout import logout
+# from core.crud.update import open_mail
 
-
-def user_menu(session):
+def user_menu(session, mail_id):
 
     user = session["user"]
-
     while True:
 
         print(f"""
@@ -34,7 +33,7 @@ Role: {user[4]}
             inbox(user[0], user[4])
 
         elif choice == "3":
-            sent_mails(user[0])
+            sent_mails(user[0],mail_id)
 
         elif choice == "4":
             logout(session)
