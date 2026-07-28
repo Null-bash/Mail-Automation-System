@@ -110,9 +110,9 @@ The system enforces the following rules:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/Null-bash/OCIMAIL.git
+git clone https://github.com/Null-bash/Mail-Automation-System.git
 
-cd OCIMAIL
+cd backend
 ```
 
 ---
@@ -244,9 +244,9 @@ python main.py
 Example:
 
 ```bash
-git clone https://github.com/Null-bash/OCIMAIL.git
+git clone https://github.com/Null-bash/Mail-Automation-System.git
 
-cd OCIMAIL
+cd backend
 
 python -m venv venv
 
@@ -266,23 +266,6 @@ python main.py
 
 ---
 
-### 4. Start PostgreSQL using Docker
-
-```bash
-docker run \
---name ocimail-postgres \
--e POSTGRES_PASSWORD=your_password \
--p 5431:5432 \
--d postgres
-```
-
-Verify:
-
-```bash
-docker ps
-```
-
----
 
 ## 🗄 Database Schema
 
