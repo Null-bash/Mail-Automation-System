@@ -1,10 +1,29 @@
-# test/crud/test_delete.py
-from unittest.mock import patch, MagicMock
+"""Unit tests for the email deletion operations.
+
+This test suite uses pytest and unittest.mock to verify the behavior of the
+`delete_mail` function. It tests deletion by the sender, deletion by the
+receiver, and documents current edge cases such as unauthorized deletion 
+attempts and handling of non-existent emails.
+"""
+
+from unittest.mock import MagicMock, patch
+
 import pytest
+
 from core.crud.delete import delete_mail
 
 
-def make_mock_conn(fetchone_return):
+def make_mock_conn(fetchone_return) -> tuple:
+    """Creates and configures mock database connection and cursor objects.
+
+    Args:
+        fetchone_return (tuple | None): The value to be returned by the
+            mock cursor's `fetchone()` method.
+
+    Returns:
+        tuple: A tuple containing the mock connection object and the mock 
+            cursor object `(mock_conn, mock_cur)`.
+    """
     mock_cur = MagicMock()
     mock_cur.fetchone.return_value = fetchone_return
 
@@ -14,7 +33,12 @@ def make_mock_conn(fetchone_return):
     return mock_conn, mock_cur
 
 
-def test_delete_mail_sender_deletes(capsys):
+def test_delete_mail_sender_deletes(capsys) -> None:
+    """Tests that a mail is marked as sender_deleted when the sender deletes it.
+
+    Args:
+        capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
+    """
     mock_conn, mock_cur = make_mock_conn(fetchone_return=(1, 2))  # sender_id=1, receiver_id=2
 
     with patch("core.crud.delete.get_connection", return_value=mock_conn):
@@ -31,7 +55,12 @@ def test_delete_mail_sender_deletes(capsys):
     assert "Mail Deleted Successfully!" in capsys.readouterr().out
 
 
-def test_delete_mail_receiver_deletes(capsys):
+def test_delete_mail_receiver_deletes(capsys) -> None:
+    """Tests that a mail is marked as receiver_deleted when the receiver deletes it.
+
+    Args:
+        capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
+    """
     mock_conn, mock_cur = make_mock_conn(fetchone_return=(1, 2))  # sender_id=1, receiver_id=2
 
     with patch("core.crud.delete.get_connection", return_value=mock_conn):
@@ -48,11 +77,15 @@ def test_delete_mail_receiver_deletes(capsys):
     assert "Mail Deleted Successfully!" in capsys.readouterr().out
 
 
-def test_delete_mail_unrelated_user_still_commits_and_prints_success(capsys):
-    """
-    Documents current behavior: if current_user_id is neither sender nor
-    receiver, no UPDATE runs, but commit() still happens and the success
-    message still prints. This may be a bug worth fixing in delete_mail().
+def test_delete_mail_unrelated_user_still_commits_and_prints_success(capsys) -> None:
+    """Tests current behavior when an unrelated user attempts to delete a mail.
+
+    Documents current behavior: if `current_user_id` is neither sender nor
+    receiver, no UPDATE runs, but `commit()` still happens and the success
+    message still prints. This may be a bug worth fixing in `delete_mail()`.
+
+    Args:
+        capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
     """
     mock_conn, mock_cur = make_mock_conn(fetchone_return=(1, 2))
 
@@ -68,11 +101,15 @@ def test_delete_mail_unrelated_user_still_commits_and_prints_success(capsys):
     assert "Mail Deleted Successfully!" in capsys.readouterr().out
 
 
-def test_delete_mail_nonexistent_mail_raises(capsys):
-    """
-    Documents current behavior: if mail_id doesn't exist, fetchone()
-    returns None, and mail[0] raises TypeError. Connection is never
-    closed in this path (leak).
+def test_delete_mail_nonexistent_mail_raises(capsys) -> None:
+    """Tests current behavior when attempting to delete a nonexistent mail.
+
+    Documents current behavior: if `mail_id` doesn't exist, `fetchone()`
+    returns None, and `mail[0]` raises a TypeError. The database connection
+    is never closed in this path (potential leak).
+
+    Args:
+        capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
     """
     mock_conn, mock_cur = make_mock_conn(fetchone_return=None)
 

@@ -1,9 +1,27 @@
+"""Email creation and forwarding functionalities for OCIMAIL.
+
+Handles the interactive creation of new emails and the forwarding of existing
+emails, including user input validation, role-based permission checks, and 
+database operations.
+"""
+
 from core.db import get_connection
 from core.permissions.roles import ROLE_PERMISSIONS
 
 
-def create_mail(sender_id, sender_role):
+def create_mail(sender_id, sender_role) -> None:
+    """Prompts the user to create and send a new email.
 
+    Handles interactive CLI input for receiver email, subject, and body. 
+    Validates the receiver's existence, ensures the sender is not emailing 
+    themselves, and verifies role-based permissions before inserting the 
+    new mail record into the database.
+
+    Args:
+        sender_id (str or int): The unique database ID of the user sending the mail.
+        sender_role (str): The role of the sender (e.g., 'MANAGER', 'EMPLOYEE') 
+            used to authorize the action.
+    """
     receiver_email = input(
         "Receiver Email: "
     ).strip()
@@ -121,12 +139,21 @@ def create_mail(sender_id, sender_role):
     print("\nMail Sent Successfully!")
 
 
-from core.db import get_connection
-from core.permissions.roles import ROLE_PERMISSIONS
 
+def forward_mail(mail_id, sender_id, sender_role) -> None:
+    """Forwards an existing email to a new receiver.
 
-def forward_mail(mail_id, sender_id, sender_role):
+    Verifies that the sender has forwarding privileges. Prompts for the receiver's
+    email and an optional forward note. Applies business rules to ensure the
+    email is not forwarded to the original sender or the current sender, and checks
+    role permissions. Inserts a new mail record and logs the forward action.
 
+    Args:
+        mail_id (str or int): The unique database ID of the original mail to be forwarded.
+        sender_id (str or int): The unique database ID of the user forwarding the mail.
+        sender_role (str): The role of the user forwarding the mail, used for
+            permission and rule validation.
+    """
     if not ROLE_PERMISSIONS[sender_role]["can_forward"]:
 
         print(
@@ -146,9 +173,7 @@ def forward_mail(mail_id, sender_id, sender_role):
     conn = get_connection()
     cur = conn.cursor()
 
-    # -----------------------------
-    # Find receiver
-    # -----------------------------
+
     cur.execute(
         """
         SELECT user_id, role

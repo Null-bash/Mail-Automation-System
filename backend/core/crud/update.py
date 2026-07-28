@@ -1,8 +1,27 @@
+"""Email reply functionality for the OCIMAIL application.
+
+Handles the creation of reply emails, including prompting for user input,
+linking the reply to the original message, and updating the status of the
+original email in the database.
+"""
+
 from core.db import get_connection
 
 
-def reply_to_mail(mail_id, current_user_id):
+def reply_to_mail(mail_id, current_user_id) -> None:
+    """Prompts the user for a reply body and sends a response to an email.
 
+    Fetches the original email's sender and subject to automatically populate 
+    the receiver and construct a "Re: " subject line. Inserts the new reply 
+    into the database linked by the 'reply_to' field, and updates the original 
+    email's status to 'REPLIED' with the current timestamp.
+
+    Args:
+        mail_id (str or int): The unique database ID of the original email 
+            being replied to.
+        current_user_id (str or int): The unique database ID of the user 
+            sending the reply.
+    """
     reply_body = input("\nReply:\n").strip()
 
     if reply_body == "":

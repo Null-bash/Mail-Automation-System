@@ -1,9 +1,27 @@
-# test/crud/test_update.py
-from unittest.mock import patch, MagicMock
+"""Unit tests for email update operations (reply functionality).
+
+This test suite uses pytest and unittest.mock to verify the behavior of the
+`reply_to_mail` function. It tests input validation (empty and whitespace-only
+replies), handling of missing emails, successful reply submission, and
+input text sanitization (whitespace stripping).
+"""
+
+from unittest.mock import MagicMock, patch
+
 from core.crud.update import reply_to_mail
 
 
-def make_mock_conn(fetchone_return):
+def make_mock_conn(fetchone_return) -> tuple:
+    """Creates and configures mock database connection and cursor objects.
+
+    Args:
+        fetchone_return (tuple | None): The value to be returned by the
+            mock cursor's `fetchone()` method.
+
+    Returns:
+        tuple: A tuple containing the mock connection object and the mock 
+            cursor object `(mock_conn, mock_cur)`.
+    """
     mock_cur = MagicMock()
     mock_cur.fetchone.return_value = fetchone_return
 
@@ -13,7 +31,13 @@ def make_mock_conn(fetchone_return):
     return mock_conn, mock_cur
 
 
-def test_reply_to_mail_empty_body(monkeypatch, capsys):
+def test_reply_to_mail_empty_body(monkeypatch, capsys) -> None:
+    """Tests that replying fails and aborts if the reply body is empty.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
+        capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
+    """
     monkeypatch.setattr("builtins.input", lambda prompt="": "")
 
     with patch("core.crud.update.get_connection") as mock_get_conn:
@@ -23,7 +47,13 @@ def test_reply_to_mail_empty_body(monkeypatch, capsys):
     assert "Reply cannot be empty!" in capsys.readouterr().out
 
 
-def test_reply_to_mail_body_whitespace_only(monkeypatch, capsys):
+def test_reply_to_mail_body_whitespace_only(monkeypatch, capsys) -> None:
+    """Tests that replying fails if the reply body consists only of whitespace.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
+        capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
+    """
     monkeypatch.setattr("builtins.input", lambda prompt="": "   ")
 
     with patch("core.crud.update.get_connection") as mock_get_conn:
@@ -33,7 +63,13 @@ def test_reply_to_mail_body_whitespace_only(monkeypatch, capsys):
     assert "Reply cannot be empty!" in capsys.readouterr().out
 
 
-def test_reply_to_mail_mail_not_found(monkeypatch, capsys):
+def test_reply_to_mail_mail_not_found(monkeypatch, capsys) -> None:
+    """Tests that replying fails if the target mail ID does not exist.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
+        capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
+    """
     monkeypatch.setattr("builtins.input", lambda prompt="": "Thanks!")
 
     mock_conn, mock_cur = make_mock_conn(fetchone_return=None)
@@ -47,7 +83,16 @@ def test_reply_to_mail_mail_not_found(monkeypatch, capsys):
     mock_conn.commit.assert_not_called()
 
 
-def test_reply_to_mail_success(monkeypatch, capsys):
+def test_reply_to_mail_success(monkeypatch, capsys) -> None:
+    """Tests a successful email reply flow.
+
+    Verifies that a new reply mail is inserted, the original mail status
+    is updated to 'REPLIED', and changes are committed.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
+        capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
+    """
     monkeypatch.setattr("builtins.input", lambda prompt="": "Sounds good!")
 
     original_mail = (5, "Meeting Notes")  # sender_id=5, subject="Meeting Notes"
@@ -73,7 +118,12 @@ def test_reply_to_mail_success(monkeypatch, capsys):
     assert "Reply Sent Successfully!" in capsys.readouterr().out
 
 
-def test_reply_to_mail_strips_input(monkeypatch):
+def test_reply_to_mail_strips_input(monkeypatch) -> None:
+    """Tests that leading and trailing whitespace are stripped from the reply body.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
+    """
     monkeypatch.setattr("builtins.input", lambda prompt="": "  padded reply  ")
 
     original_mail = (5, "Subject")

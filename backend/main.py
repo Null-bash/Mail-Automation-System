@@ -1,46 +1,56 @@
-# main.py
+"""Main entry point for the OCIMAIL application.
+
+This script manages the primary CLI user menu, handling top-level navigation
+for authentication (login) and application termination.
+"""
+
 from core.auth.login import login
 from core.menus.user_menu import user_menu
-from core.db import get_connection
 
-MENU_TEXT = """
+
+def main() -> None:
+    """Runs the interactive main menu loop for OCIMAIL.
+
+    Prompts the user to log in or exit. Upon successful authentication,
+    initializes the user session and delegates control to the user menu interface.
+    """
+    while True:
+        print("""
 =================================
             OCIMAIL
 =================================
 
 1. Login
 2. Exit
-"""
+""")
 
-def get_mail_ids():
-    get_connection()
-    return []
-
-def run_menu_once(choice, login_fn=login, menu_fn=user_menu):
-    """Handles a single choice. Returns False if the app should exit."""
-    if choice == "1":
-        user = login_fn()
-        if user:
-            session = {"user": user}
-            mail_ids = get_mail_ids()
-            print("\nSuccessfully Logged In!\n")
-            menu_fn(session, mail_ids)
-        return True
-
-    elif choice == "2":
-        print("Goodbye!")
-        return False
-
-    else:
-        print("Invalid Choice!")
-        return True
-
-def main():
-    while True:
-        print(MENU_TEXT)
         choice = input("> ")
-        if not run_menu_once(choice):
+
+        if choice == "1":
+            user = login()
+
+            if user:
+                session = {
+                    "user": user,
+                }
+                mail_id = {
+                    """
+                    SELECT mail_id FROM mails"""
+                }
+
+                print()
+                print("Successfully Logged In!")
+                print()
+
+                user_menu(session, mail_id)
+
+        elif choice == "2":
+            print("Goodbye!")
             break
+
+        else:
+            print("Invalid Choice!")
+
 
 if __name__ == "__main__":
     main()

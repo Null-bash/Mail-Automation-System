@@ -1,11 +1,29 @@
-from core.db import get_connection
-from core.crud.update import reply_to_mail
+"""Read and display operations for the OCIMAIL application.
+
+Handles retrieving, paginating, and viewing emails in the user's inbox
+and sent folders. Also provides interactive menus for viewing specific
+email details and triggering actions like reply, forward, or delete.
+"""
+
 from core.crud.create import forward_mail
 from core.crud.delete import delete_mail
+from core.crud.update import reply_to_mail
+from core.db import get_connection
 
 
-def inbox(user_id, role, page=0):
+def inbox(user_id, role, page=0) -> None:
+    """Displays the user's paginated inbox and handles navigation.
 
+    Fetches received emails that have not been soft-deleted by the receiver, 
+    ordered by creation date. Presents an interactive CLI menu to page through 
+    emails (Next/Previous) or select a specific email to open.
+
+    Args:
+        user_id (str or int): The unique database ID of the current user.
+        role (str): The role of the user (e.g., 'EMPLOYEE', 'MANAGER'), passed 
+            down to determine available actions when opening an email.
+        page (int, optional): The current page index for pagination. Defaults to 0.
+    """
     PAGE_SIZE = 10
 
     while True:
@@ -98,8 +116,18 @@ def inbox(user_id, role, page=0):
 
 
 
-def via_mail(mail_id, current_user_id):
+def via_mail(mail_id, current_user_id) -> None:
+    """Displays the details of a sent email and its action menu.
 
+    Fetches and prints the full content (sender, receiver, subject, body, status, date) 
+    of a specific sent email. Provides a nested CLI menu allowing the user to either 
+    delete the email or go back.
+
+    Args:
+        mail_id (str or int): The unique database ID of the email to view.
+        current_user_id (str or int): The unique database ID of the current user, 
+            used for authorization if they choose to delete the email.
+    """
     conn = get_connection()
     cur = conn.cursor()
 
@@ -172,8 +200,20 @@ def via_mail(mail_id, current_user_id):
 
 
 
-def open_mail(mail_id, role, current_user_id):
+def open_mail(mail_id, role, current_user_id) -> None:
+    """Opens an inbox email, updates its status to SEEN, and shows actions.
 
+    Fetches the full details of an email. If the email status is currently 'UNSEEN', 
+    it updates the status to 'SEEN' and records the reaction time in the database. 
+    Prints the email content and presents an action menu (Reply, Forward, Delete) 
+    that dynamically adjusts based on the user's role.
+
+    Args:
+        mail_id (str or int): The unique database ID of the email to open.
+        role (str): The role of the user (e.g., 'EMPLOYEE', 'MANAGER') which 
+            determines if they have access to the Forward action.
+        current_user_id (str or int): The unique database ID of the current user.
+    """
     conn = get_connection()
     cur = conn.cursor()
 
@@ -319,8 +359,18 @@ def open_mail(mail_id, role, current_user_id):
                 print("\nInvalid Choice!\n")
 
 
-def sent_mails(user_id, mail_id, page=0):
+def sent_mails(user_id, mail_id, page=0) -> None:
+    """Displays the user's paginated sent emails and handles navigation.
 
+    Fetches emails sent by the user that have not been soft-deleted by the sender, 
+    ordered by creation date. Presents an interactive CLI menu to page through 
+    the emails (Next/Previous) or select a specific email to view its details.
+
+    Args:
+        user_id (str or int): The unique database ID of the current user.
+        mail_id (any): External parameter passed from the session/menu state.
+        page (int, optional): The current page index for pagination. Defaults to 0.
+    """
     PAGE_SIZE = 10
 
     while True:
