@@ -70,3 +70,68 @@ def delete_mail(mail_id, current_user_id) -> None:
     conn.close()
 
     print("\nMail Deleted Successfully!\n")
+
+
+def delete_forward(forward_id, current_user_id) -> None:
+    """Soft-deletes a forward for the specified user.
+
+    Fetches the forward record to determine if the requesting user is the
+    sender or the receiver of that specific forward. Updates the database by
+    setting either the 'sender_deleted' or 'receiver_deleted' flag to TRUE,
+    effectively hiding the forward from the user's view without permanently
+    erasing the database row.
+
+    Args:
+        forward_id (str or int): The unique identifier of the forward to be deleted.
+        current_user_id (str or int): The unique database ID of the user
+            attempting to delete the forward.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            sender_id,
+            receiver_id
+        FROM forwards
+        WHERE forward_id=%s;
+        """,
+        (forward_id,)
+    )
+
+    forward = cur.fetchone()
+
+    sender_id = forward[0]
+    receiver_id = forward[1]
+
+    # Sender deletes
+    if current_user_id == sender_id:
+
+        cur.execute(
+            """
+            UPDATE forwards
+            SET sender_deleted=TRUE
+            WHERE forward_id=%s;
+            """,
+            (forward_id,)
+        )
+
+    # Receiver deletes
+    elif current_user_id == receiver_id:
+
+        cur.execute(
+            """
+            UPDATE forwards
+            SET receiver_deleted=TRUE
+            WHERE forward_id=%s;
+            """,
+            (forward_id,)
+        )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    print("\nForward Deleted Successfully!\n")

@@ -6,13 +6,15 @@ for authentication (login) and application termination.
 
 from core.auth.login import login
 from core.menus.user_menu import user_menu
+from core.menus.admin_menu import admin_menu
 
 
 def main() -> None:
     """Runs the interactive main menu loop for OCIMAIL.
 
     Prompts the user to log in or exit. Upon successful authentication,
-    initializes the user session and delegates control to the user menu interface.
+    initializes the user session and delegates control to the user menu
+    interface, or the admin menu if the account's role is ADMIN.
     """
     while True:
         print("""
@@ -33,16 +35,15 @@ def main() -> None:
                 session = {
                     "user": user,
                 }
-                mail_id = {
-                    """
-                    SELECT mail_id FROM mails"""
-                }
 
                 print()
                 print("Successfully Logged In!")
                 print()
 
-                user_menu(session, mail_id)
+                if user[4] == "ADMIN":
+                    admin_menu(session)
+                else:
+                    user_menu(session, None)
 
         elif choice == "2":
             print("Goodbye!")

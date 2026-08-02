@@ -168,7 +168,7 @@ def forward_mail(mail_id, sender_id, sender_role) -> None:
         print("\nReceiver Email cannot be empty!")
         return
 
-    forward_note = input("Forward Note: ")
+    forward_notes = input("Forward Note: ")
 
     conn = get_connection()
     cur = conn.cursor()
@@ -246,56 +246,15 @@ def forward_mail(mail_id, sender_id, sender_role) -> None:
         conn.close()
         return
 
-    # -----------------------------
-    # Get original mail
-    # -----------------------------
-    cur.execute(
-        """
-        SELECT subject, body
-        FROM mails
-        WHERE mail_id=%s;
-        """,
-        (mail_id,)
-    )
-
-    original_mail = cur.fetchone()
-
-    subject = original_mail[0]
-    body = original_mail[1]
-
-    forwarded_subject = f"FWD: {subject}"
+    forward_note = forward_notes
 
     # -----------------------------
-    # Create new mail
-    # -----------------------------
-    cur.execute(
-        """
-        INSERT INTO mails(
-            sender_id,
-            receiver_id,
-            subject,
-            body
-        )
-        VALUES(
-            %s,
-            %s,
-            %s,
-            %s
-        )
-        RETURNING mail_id;
-        """,
-        (
-            sender_id,
-            receiver_id,
-            forwarded_subject,
-            body
-        )
-    )
-
-    new_mail_id = cur.fetchone()[0]
-
-    # -----------------------------
-    # Save forwarding history
+    # Save the forward
+    #
+    # No new row is created in `mails` — the forward references the
+    # ORIGINAL mail_id. This is what makes it show up automatically in
+    # the receiver's inbox (via the UNION in inbox()) and lets us show
+    # it in the sender's Sent Mails too, without duplicating content.
     # -----------------------------
     cur.execute(
         """
@@ -316,7 +275,7 @@ def forward_mail(mail_id, sender_id, sender_role) -> None:
             sender_id,
             receiver_id,
             forward_note,
-            new_mail_id
+            mail_id
         )
     )
 

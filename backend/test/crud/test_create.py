@@ -323,9 +323,11 @@ def test_forward_mail_permission_denied_for_role(monkeypatch, capsys) -> None:
 def test_forward_mail_success(monkeypatch, capsys) -> None:
     """Tests a successful email forwarding flow.
 
-    Verifies that the new forwarded email is inserted into the `mails` table,
-    the forwarding relationship is logged in the `forwards` table, and 
-    changes are properly committed to the database.
+    Verifies that the forwarding relationship is logged in the `forwards`
+    table (no new row is created in `mails` — forwards reference the
+    original mail_id directly, which is how they show up automatically in
+    the receiver's inbox and the sender's Sent Mails without duplicating
+    content), and that changes are properly committed to the database.
 
     Args:
         monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
@@ -335,25 +337,18 @@ def test_forward_mail_success(monkeypatch, capsys) -> None:
     monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
 
     mock_conn, mock_cur = make_mock_conn(fetchone_side_effect=[
-        (2, "staff"),          # receiver lookup
-        (5,),                  # original sender lookup
-        ("Hello", "Body text"),  # original mail lookup
-        (42,),                 # new_mail_id from RETURNING
+        (2, "staff"),   # receiver lookup
+        (5,),           # original sender lookup
     ])
 
     with patch("core.crud.create.get_connection", return_value=mock_conn), \
          patch("core.crud.create.ROLE_PERMISSIONS", SAMPLE_ROLES):
         forward_mail(mail_id=99, sender_id=1, sender_role="admin")
 
-    insert_mail_call = mock_cur.execute.call_args_list[-2]
-    query, params = insert_mail_call[0]
-    assert "INSERT INTO mails" in query
-    assert params == (1, 2, "FWD: Hello", "Body text")
-
     insert_forward_call = mock_cur.execute.call_args_list[-1]
-    query2, params2 = insert_forward_call[0]
-    assert "INSERT INTO forwards" in query2
-    assert params2 == (1, 2, "fyi", 42)
+    query, params = insert_forward_call[0]
+    assert "INSERT INTO forwards" in query
+    assert params == (1, 2, "fyi", 99)
 
     mock_conn.commit.assert_called_once()
     mock_cur.close.assert_called_once()

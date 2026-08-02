@@ -10,8 +10,13 @@ from core.permissions.roles import ROLE_PERMISSIONS
 
 
 def test_all_expected_roles_present() -> None:
-    """Tests that exactly the expected set of roles are defined in `ROLE_PERMISSIONS`."""
-    assert set(ROLE_PERMISSIONS.keys()) == {"EMPLOYEE", "MANAGER", "CEO"}
+    """Tests that exactly the expected set of roles are defined in `ROLE_PERMISSIONS`.
+
+    Includes ADMIN alongside the original EMPLOYEE/MANAGER/CEO roles, since
+    the admin menu and admin-only actions (create/list/delete user) were
+    added to the application.
+    """
+    assert set(ROLE_PERMISSIONS.keys()) == {"ADMIN", "EMPLOYEE", "MANAGER", "CEO"}
 
 
 def test_every_role_has_required_keys() -> None:

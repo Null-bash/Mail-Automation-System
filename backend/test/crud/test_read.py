@@ -16,13 +16,13 @@ def make_mock_conn(fetchall_side_effect=None, fetchone_side_effect=None) -> tupl
     """Creates and configures mock database connection and cursor objects.
 
     Args:
-        fetchall_side_effect (iterable, optional): A sequence of values to be 
+        fetchall_side_effect (iterable, optional): A sequence of values to be
             returned sequentially by the mock cursor's `fetchall()` method.
-        fetchone_side_effect (iterable, optional): A sequence of values to be 
+        fetchone_side_effect (iterable, optional): A sequence of values to be
             returned sequentially by the mock cursor's `fetchone()` method.
 
     Returns:
-        tuple: A tuple containing the mock connection object and the mock 
+        tuple: A tuple containing the mock connection object and the mock
             cursor object `(mock_conn, mock_cur)`.
     """
     mock_cur = MagicMock()
@@ -42,6 +42,8 @@ SAMPLE_DATE = datetime(2026, 1, 15, 10, 30)
 # ---------------------------
 # inbox
 # ---------------------------
+# inbox() rows are 7-tuples:
+# (id, sender_email, forwarder_email_or_None, subject, status, date, type)
 
 def test_inbox_empty(capsys) -> None:
     """Tests that the inbox correctly reports when it is empty.
@@ -64,7 +66,7 @@ def test_inbox_back_immediately(monkeypatch, capsys) -> None:
         monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
         capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
     """
-    rows = [(1, "alice@example.com", "Hi", "UNSEEN", SAMPLE_DATE)]
+    rows = [(1, "alice@example.com", None, "Hi", "UNSEEN", SAMPLE_DATE, "MAIL")]
     mock_conn, mock_cur = make_mock_conn(fetchall_side_effect=[rows])
 
     monkeypatch.setattr("builtins.input", lambda prompt="": "0")
@@ -83,7 +85,7 @@ def test_inbox_select_mail_calls_open_mail(monkeypatch) -> None:
     Args:
         monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
     """
-    rows = [(42, "alice@example.com", "Hi", "UNSEEN", SAMPLE_DATE)]
+    rows = [(42, "alice@example.com", None, "Hi", "UNSEEN", SAMPLE_DATE, "MAIL")]
     mock_conn, mock_cur = make_mock_conn(fetchall_side_effect=[rows, rows])
 
     inputs = iter(["1", "0"])
@@ -96,14 +98,36 @@ def test_inbox_select_mail_calls_open_mail(monkeypatch) -> None:
     mock_open_mail.assert_called_once_with(42, "EMPLOYEE", 1)
 
 
+def test_inbox_select_forward_calls_open_forward(monkeypatch) -> None:
+    """Tests that selecting a forwarded item from the inbox calls `open_forward`.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
+    """
+    rows = [(7, "creator@example.com", "forwarder@example.com", "FWD Hi", "UNSEEN", SAMPLE_DATE, "FORWARD")]
+    mock_conn, mock_cur = make_mock_conn(fetchall_side_effect=[rows, rows])
+
+    inputs = iter(["1", "0"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+
+    with patch("core.crud.read.get_connection", return_value=mock_conn), \
+         patch("core.crud.read.open_forward") as mock_open_forward:
+        inbox(user_id=1, role="MANAGER")
+
+    mock_open_forward.assert_called_once_with(7, "MANAGER", 1)
+
+
 def test_inbox_pagination_next_then_back(monkeypatch) -> None:
     """Tests inbox pagination logic when navigating to the next page and back.
 
     Args:
         monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
     """
-    page1_rows = [(i, f"user{i}@example.com", f"Subj {i}", "UNSEEN", SAMPLE_DATE) for i in range(11)]
-    page2_rows = [(20, "bob@example.com", "Last one", "SEEN", SAMPLE_DATE)]
+    page1_rows = [
+        (i, f"user{i}@example.com", None, f"Subj {i}", "UNSEEN", SAMPLE_DATE, "MAIL")
+        for i in range(11)
+    ]
+    page2_rows = [(20, "bob@example.com", None, "Last one", "SEEN", SAMPLE_DATE, "MAIL")]
 
     mock_conn, mock_cur = make_mock_conn(fetchall_side_effect=[page1_rows, page2_rows])
 
@@ -115,7 +139,8 @@ def test_inbox_pagination_next_then_back(monkeypatch) -> None:
 
     assert mock_cur.fetchall.call_count == 2
     second_call_args = mock_cur.execute.call_args_list[-1][0][1]
-    assert second_call_args == (1, 11, 10)  # offset = page(1) * PAGE_SIZE(10)
+    # query params: (user_id for mails half, user_id for forwards half, limit, offset)
+    assert second_call_args == (1, 1, 11, 10)  # offset = page(1) * PAGE_SIZE(10)
 
 
 def test_inbox_invalid_choice(monkeypatch, capsys) -> None:
@@ -125,7 +150,7 @@ def test_inbox_invalid_choice(monkeypatch, capsys) -> None:
         monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
         capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
     """
-    rows = [(1, "alice@example.com", "Hi", "UNSEEN", SAMPLE_DATE)]
+    rows = [(1, "alice@example.com", None, "Hi", "UNSEEN", SAMPLE_DATE, "MAIL")]
     mock_conn, mock_cur = make_mock_conn(fetchall_side_effect=[rows, rows])
 
     inputs = iter(["X", "0"])
@@ -335,6 +360,8 @@ def test_open_mail_invalid_choice(monkeypatch, capsys) -> None:
 # ---------------------------
 # sent_mails
 # ---------------------------
+# sent_mails() rows are 6-tuples:
+# (id, receiver_email, receiver_role, subject, date, type)
 
 def test_sent_mails_empty(capsys) -> None:
     """Tests that the sent mails view correctly reports when it is empty.
@@ -356,7 +383,7 @@ def test_sent_mails_select_calls_via_mail(monkeypatch) -> None:
     Args:
         monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
     """
-    rows = [(99, "bob@example.com", "STAFF", "Hi", SAMPLE_DATE)]
+    rows = [(99, "bob@example.com", "STAFF", "Hi", SAMPLE_DATE, "MAIL")]
     mock_conn, mock_cur = make_mock_conn(fetchall_side_effect=[rows, rows])
 
     inputs = iter(["1", "0"])
@@ -367,3 +394,22 @@ def test_sent_mails_select_calls_via_mail(monkeypatch) -> None:
         sent_mails(user_id=1, mail_id=None)
 
     mock_via_mail.assert_called_once_with(99, 1)
+
+
+def test_sent_mails_select_forward_calls_via_forward(monkeypatch) -> None:
+    """Tests that selecting a forward from sent mails calls `via_forward`.
+
+    Args:
+        monkeypatch (pytest.MonkeyPatch): Pytest fixture to mock standard input.
+    """
+    rows = [(55, "carol@example.com", "MANAGER", "FWD Hi", SAMPLE_DATE, "FORWARD")]
+    mock_conn, mock_cur = make_mock_conn(fetchall_side_effect=[rows, rows])
+
+    inputs = iter(["1", "0"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+
+    with patch("core.crud.read.get_connection", return_value=mock_conn), \
+         patch("core.crud.read.via_forward") as mock_via_forward:
+        sent_mails(user_id=1, mail_id=None)
+
+    mock_via_forward.assert_called_once_with(55, 1)
