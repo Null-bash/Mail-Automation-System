@@ -2,7 +2,7 @@
 
 OCIMAIL is a CLI-based Mail Automation System inspired by enterprise office automation platforms and internal organizational correspondence systems.
 
-Built with Python, PostgreSQL, Docker, and psycopg, OCIMAIL provides a secure role-based environment for managing communications between Employees, Managers, and CEOs.
+Built with Python, PostgreSQL, Docker, and psycopg, OCIMAIL provides a secure role-based environment for managing communications between Employees, Managers, and CEOs — with an Admin role to manage user accounts.
 
 The project focuses on software architecture, database design, role-based access control, and building scalable terminal applications.
 
@@ -10,21 +10,22 @@ The project focuses on software architecture, database design, role-based access
 
 ## ✨ Features
 
-- 🔐 Session-Based Authentication
+- 🔐 Session-Based Authentication with bcrypt-hashed passwords
 - 👤 Role-Based Access Control (RBAC)
+- 🛡️ Admin Role & User Management (create, list, deactivate users)
 - 📧 Create Mail
 - 📥 Interactive Inbox
 - 📤 Sent Mails
-- ↩️ Reply to Mails
-- 🔁 Forward Mails
-- 🗑️ Soft Delete Support
+- ↩️ Reply to Mails and Forwards
+- 🔁 Forward Mails (including multi-hop forwarding)
+- 🗑️ Soft Delete Support (for mails, forwards, and users)
 - 📚 Mail Threading (`reply_to`)
-- 📌 Mail Status Lifecycle
+- 📌 Mail & Forward Status Lifecycle
     - UNSEEN
     - SEEN
     - REPLIED
 - 📄 Organizational Hierarchy Enforcement
-- ⚡ Pagination (10 mails per page)
+- ⚡ Pagination (10 items per page)
 - 🧪 Unit Testing with pytest
 - 🐳 PostgreSQL inside Docker
 - 🖥️ Interactive CLI Experience
@@ -33,7 +34,7 @@ The project focuses on software architecture, database design, role-based access
 
 ## 🏢 Organization Hierarchy
 
-OCIMAIL follows a strict organizational structure.
+OCIMAIL follows a strict organizational structure for mail communication.
 
 ```text
           CEO
@@ -44,6 +45,12 @@ EMPLOYEE     EMPLOYEE
 ```
 
 Managers act as intermediaries between Employees and the CEO.
+
+> **Note**
+>
+> The `ADMIN` role sits outside this hierarchy. Admins don't send, receive,
+> or forward mail — they exist solely to create, list, and deactivate user
+> accounts. See [Admin Role](#-admin-role) below.
 
 ---
 
@@ -71,6 +78,7 @@ Managers act as intermediaries between Employees and the CEO.
 - Forwarding a mail to yourself
 - Forwarding a mail back to its original sender
 - Sending mails to users that do not exist
+- Admins sending/forwarding mail (they have no `can_mail` permissions)
 
 ---
 
@@ -88,8 +96,12 @@ The system enforces the following rules:
 8. Users cannot communicate outside their role permissions.
 9. Forwarding follows organizational hierarchy.
 10. Users cannot forward a mail to the user who originally sent it.
-11. Deleted mails remain in the database for consistency.
+11. Deleted mails, forwards, and users remain in the database for consistency (soft delete only).
 12. Inbox and Sent Mails are paginated.
+13. A user can hold exactly one role — `role` is a single column, and account creation validates the given role against the recognized set (`EMPLOYEE`, `MANAGER`, `CEO`, `ADMIN`).
+14. An admin cannot create a user with an email that already exists.
+15. Deactivated (soft-deleted) users cannot log in.
+16. Passwords are never stored in plaintext — only bcrypt hashes are persisted.
 
 ---
 
@@ -101,6 +113,7 @@ The system enforces the following rules:
 | PostgreSQL | Database |
 | Docker | Containerization |
 | psycopg | PostgreSQL Driver |
+| bcrypt | Password Hashing |
 | pytest | Testing Framework |
 
 ---
@@ -139,6 +152,10 @@ venv\Scripts\activate
 
 ### 3. Install dependencies
 
+```bash
+pip install -r requirements.txt
+```
+
 ---
 
 ## ⚠️ Database Password Configuration
@@ -159,10 +176,10 @@ KeyError: 'DB_PASSWORD'
 
 ### Linux / macOS
 
-Run the following command in your terminal:
+Run the following command in your terminal, replacing the placeholder with your own password:
 
 ```bash
-export DB_PASSWORD="20031382Ss@"
+export DB_PASSWORD="your_secure_password_here"
 ```
 
 Verify that it has been configured correctly:
@@ -170,6 +187,13 @@ Verify that it has been configured correctly:
 ```bash
 echo $DB_PASSWORD
 ```
+
+> **⚠️ Security Note**
+>
+> Never commit a real database password into this README, `.env` files, or
+> any tracked file in a public repository. Use a placeholder in documentation
+> and keep real credentials in an untracked `.env` file or your shell
+> environment only.
 
 ---
 
@@ -186,7 +210,7 @@ export DB_NAME="Mail Automation System"
 
 export DB_USER="postgres"
 
-export DB_PASSWORD="20031382Ss@"
+export DB_PASSWORD="your_secure_password_here"
 ```
 
 The application uses the following defaults if these values are not provided:
@@ -212,7 +236,7 @@ Start PostgreSQL using Docker:
 ```bash
 docker run \
 --name ocimail-postgres \
--e POSTGRES_PASSWORD=20031382Ss@ \
+-e POSTGRES_PASSWORD=your_secure_password_here \
 -p 5431:5432 \
 -d postgres
 ```
@@ -238,6 +262,8 @@ Export DB_PASSWORD
         ↓
 Run PostgreSQL Container
         ↓
+Apply Database Schema & Migrations
+        ↓
 python main.py
 ```
 
@@ -254,10 +280,10 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 
-export DB_PASSWORD="20031382Ss@"
+export DB_PASSWORD="your_secure_password_here"
 
 docker run --name postgres \
--e POSTGRES_PASSWORD=20031382Ss@ \
+-e POSTGRES_PASSWORD=your_secure_password_here \
 -p 5431:5432 \
 -d postgres
 
@@ -266,18 +292,18 @@ python main.py
 
 ---
 
-
 ## 🗄 Database Schema
 
 ### users
 
 ```text
-user_id
-name
-email
-password_hash
-role
-created_at
+user_id           uuid, primary key
+name              varchar
+email             varchar, unique
+password_hash     varchar (bcrypt hash)
+role              user_role (enum)
+is_active         boolean, default TRUE
+created_at        timestamp
 ```
 
 ### Roles
@@ -285,6 +311,7 @@ created_at
 - EMPLOYEE
 - MANAGER
 - CEO
+- ADMIN *(system role — manages users, not part of the mail hierarchy)*
 
 ---
 
@@ -319,11 +346,23 @@ forward_id
 sender_id
 receiver_id
 forward_note
-created_date
 mail_id
+status
+created_date
+reacted_date
 sender_deleted
 receiver_deleted
 ```
+
+`mail_id` always points to the **original** mail — even when a forward is
+itself forwarded onward (see [Forwarding Chain](#-forwarding-chain) below).
+Each hop in a forward chain gets its own row here.
+
+### Forward Status
+
+- UNSEEN
+- SEEN
+- REPLIED
 
 ---
 
@@ -351,23 +390,62 @@ Example:
 09:20 Mail Replied
 ```
 
+The same lifecycle applies to **forwards**: each forward starts `UNSEEN`,
+becomes `SEEN` when the recipient opens it, and `REPLIED` if they respond.
+Opening/replying to a forward never changes the original mail's own status
+or timestamps — each row tracks its own state independently.
+
+---
+
+## 🔁 Forwarding Chain
+
+`FROM` always shows the **original creator** of the mail, no matter how many
+times it's been forwarded. A `FORWARDED BY` line shows who forwarded it to
+*you specifically* — the most recent hop.
+
+Example chain:
+
+```text
+Reza (EMPLOYEE) creates a mail and sends it to Majid (MANAGER)
+Majid forwards it to Mohsen (MANAGER)
+Mohsen forwards it to Sara (MANAGER)
+```
+
+When Sara opens her inbox:
+
+```text
+FROM:
+reza@company.com
+
+FORWARDED BY:
+mohsen@company.com
+```
+
+Each forward is its own independent row in the `forwards` table
+(`mail_id` always referencing Reza's original mail), which is what makes
+multi-hop forwarding work without any extra chain-tracking logic — the
+immediate `sender_id` on the last row *is* the last forwarder.
+
 ---
 
 ## 🗑 Soft Delete
 
-OCIMAIL uses soft deletion.
+OCIMAIL uses soft deletion everywhere — for mails, forwards, and users.
 
 Instead of:
 
 ```sql
 DELETE FROM mails;
+DELETE FROM forwards;
+DELETE FROM users;
 ```
 
 the application uses:
 
 ```sql
-sender_deleted = TRUE
-receiver_deleted = TRUE
+sender_deleted = TRUE      -- mails / forwards
+receiver_deleted = TRUE    -- mails / forwards
+is_active = FALSE          -- users
 ```
 
 This guarantees:
@@ -376,6 +454,7 @@ This guarantees:
 - Replies remain valid.
 - Forward history remains valid.
 - Mail threads remain consistent.
+- Deactivated users' past mail history stays intact for everyone else.
 
 This approach is similar to modern mail systems such as Outlook and Gmail.
 
@@ -393,6 +472,11 @@ backend/
 ├── core/
 │   ├── db.py
 │   │
+│   ├── admin/
+│   │   ├── create.py
+│   │   ├── read.py
+│   │   └── delete.py
+│   │
 │   ├── auth/
 │   │   ├── login.py
 │   │   └── logout.py
@@ -404,12 +488,14 @@ backend/
 │   │   └── delete.py
 │   │
 │   ├── menus/
-│   │   └── user_menu.py
+│   │   ├── user_menu.py
+│   │   └── admin_menu.py
 │   │
 │   └── permissions/
 │       └── roles.py
 │
 └── test/
+    ├── admin/
     ├── auth/
     ├── crud/
     ├── menus/
@@ -457,6 +543,17 @@ Role: EMPLOYEE
 4. Logout
 ```
 
+### Admin Menu
+
+```text
+========== ADMIN MENU ==========
+
+1. Create User
+2. List Users
+3. Delete User
+0. Logout
+```
+
 ---
 
 ## 📥 Inbox
@@ -469,12 +566,15 @@ Example:
 ========== INBOX ==========
 
 1. Weekly Meeting
+   Type   : MAIL
    From   : sara@company.com
    Status : UNSEEN
    Date   : 25 Jul 2026 | 08:30
 
 2. Budget Report
+   Type   : FORWARD
    From   : reza@company.com
+   FORWARDED BY : sara@test.com
    Status : REPLIED
    Date   : 24 Jul 2026 | 14:15
 
@@ -487,7 +587,7 @@ N. Next
 
 ## 📬 Open Mail
 
-Selecting a mail opens:
+Opening a regular mail:
 
 ```text
 FROM:
@@ -509,24 +609,73 @@ DATE:
 25 Jul 2026 | 08:30
 ```
 
+Opening a **forwarded** mail additionally includes a `FORWARD NOTE BY`
+line, identifying whoever forwarded it to you and their role:
+
+```text
+FROM:
+reza@company.com
+
+TO:
+sara@company.com
+
+SUBJECT:
+Weekly Meeting
+
+BODY:
+Please attend tomorrow's meeting.
+
+FORWARD NOTE BY mohsen@company.com / MANAGER:
+Take a look at this when you get a chance.
+
+STATUS:
+SEEN
+
+DATE:
+25 Jul 2026 | 08:30
+```
+
 ---
 
 ### Available Actions
 
-#### Employee
+#### Mail — Employee
 
 ```text
 1. Reply
+2. Delete
 0. Back
 ```
 
-#### Manager / CEO
+#### Mail — Manager / CEO
 
 ```text
 1. Reply
 2. Forward
+3. Delete
 0. Back
 ```
+
+#### Forward — Employee
+
+```text
+1. Reply
+2. Delete
+0. Back
+```
+
+#### Forward — Manager / CEO
+
+```text
+1. Reply
+2. Forward
+3. Delete
+0. Back
+```
+
+Replying to a forward addresses whoever forwarded it to you (the most
+recent hop) — not the original creator of the mail. Forwarding a forward
+creates a new row in `forwards` for that hop, enabling multi-hop chains.
 
 ---
 
@@ -534,7 +683,13 @@ DATE:
 
 OCIMAIL uses a lightweight Session-Based Authentication mechanism.
 
-After a successful login, the authenticated user is stored inside a session object:
+On login, the entered password is verified against the bcrypt hash stored
+in `password_hash` using `bcrypt.checkpw()` — plaintext passwords are never
+compared or stored directly. Deactivated accounts (`is_active = FALSE`) are
+rejected at login regardless of a correct password.
+
+After a successful login, the authenticated user is stored inside a session
+object:
 
 ```python
 session = {
@@ -548,7 +703,35 @@ The session is used throughout the application's lifecycle to determine:
 - Current Role
 - Permissions
 
-This approach keeps the CLI application lightweight while maintaining a clean separation between authentication and authorization.
+Based on the account's role, `main.py` routes into the appropriate menu:
+`admin_menu` for `ADMIN`, `user_menu` for everyone else.
+
+This approach keeps the CLI application lightweight while maintaining a
+clean separation between authentication and authorization.
+
+---
+
+## 🛡 Admin Role
+
+Admins manage user accounts and don't participate in mail communication.
+
+### Capabilities
+
+- **Create User** — creates a new account with a name, email, password, and
+  role. Refuses to create a user if the email already exists, and validates
+  the role against the recognized set (`EMPLOYEE`, `MANAGER`, `CEO`, `ADMIN`).
+- **List Users** — paginated view of all accounts, showing name, email,
+  role, and active/deactivated status.
+- **Delete User** — soft-deletes (deactivates) an account via `is_active`,
+  preserving all of that user's mail history for everyone else involved.
+
+### Rules
+
+- A user can never have more than one role (enforced structurally — `role`
+  is a single column, validated on creation).
+- Emails must be unique across all users.
+- Deactivating a user does not delete or alter any mail/forward rows they
+  were involved in.
 
 ---
 
@@ -595,6 +778,7 @@ OCIMAIL was built to practice and demonstrate:
 - Docker
 - Session Management
 - Role-Based Access Control (RBAC)
+- Secure Password Hashing & Authentication (bcrypt)
 - CRUD Operations
 - Python Project Architecture
 - Terminal Application Design
@@ -612,9 +796,7 @@ OCIMAIL was built to practice and demonstrate:
 - Docker Compose
 - Mail Categories
 - Audit Logs
-- Admin Dashboard
 - REST API
-- Real-Time Messaging
 
 ---
 
