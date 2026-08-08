@@ -54,6 +54,26 @@ Managers act as intermediaries between Employees and the CEO.
 
 ---
 
+## 👥 Who Does What
+
+A quick reference for what each role can actually do in OCIMAIL:
+
+| Role | Can send mail to | Can forward? | Can manage users? | Notes |
+|------|-------------------|:---:|:---:|-------|
+| **EMPLOYEE** | MANAGER | ❌ | ❌ | Can reply and delete mail, cannot forward |
+| **MANAGER** | EMPLOYEE, MANAGER, CEO | ✅ | ❌ | Sits between Employees and the CEO |
+| **CEO** | MANAGER | ✅ | ❌ | Exactly one CEO can exist in the system |
+| **ADMIN** | — | ❌ | ✅ | Creates, lists, and deactivates user accounts; never touches mail |
+
+Everyone (except Admin, who has no mailbox) shares the same Inbox / Sent
+Mails / Reply / Forward / Delete mechanics — what differs per role is
+*who* they're allowed to mail and whether they can forward. See
+[Communication Rules](#-communication-rules) for the exact allowed/forbidden
+pairs, and [Available Actions](#available-actions) for how the action menu
+changes based on role.
+
+---
+
 ## 📜 Communication Rules
 
 ### Allowed
@@ -102,6 +122,8 @@ The system enforces the following rules:
 14. An admin cannot create a user with an email that already exists.
 15. Deactivated (soft-deleted) users cannot log in.
 16. Passwords are never stored in plaintext — only bcrypt hashes are persisted.
+17. Only one `CEO` may exist in the system at any time — an admin cannot create a second `CEO` account, even if the existing one is deactivated.
+18. Deactivating a user cascades: `sender_deleted`/`receiver_deleted` are flipped to `TRUE` on every mail and forward where that user is the sender or receiver, clearing their own view of their mail history. The other party's copy of the same mail/forward is left untouched.
 
 ---
 
@@ -235,7 +257,7 @@ Start PostgreSQL using Docker:
 
 ```bash
 docker run \
---name ocimail-postgres \
+--name some postgres \
 -e POSTGRES_PASSWORD=your_secure_password_here \
 -p 5431:5432 \
 -d postgres
@@ -454,9 +476,26 @@ This guarantees:
 - Replies remain valid.
 - Forward history remains valid.
 - Mail threads remain consistent.
-- Deactivated users' past mail history stays intact for everyone else.
 
 This approach is similar to modern mail systems such as Outlook and Gmail.
+
+### Deactivating a User Cascades
+
+When an admin deactivates a user (`is_active = FALSE`), that alone doesn't
+touch their mail — so a separate cascade step also runs, flipping this
+user's own side of every mail/forward they were involved in:
+
+```sql
+UPDATE mails    SET sender_deleted=TRUE   WHERE sender_id=<user_id>;
+UPDATE mails    SET receiver_deleted=TRUE WHERE receiver_id=<user_id>;
+UPDATE forwards SET sender_deleted=TRUE   WHERE sender_id=<user_id>;
+UPDATE forwards SET receiver_deleted=TRUE WHERE receiver_id=<user_id>;
+```
+
+This clears the deactivated user's own Inbox/Sent view, without affecting
+anyone else's copy of the same mail/forward — the other party's
+`sender_deleted`/`receiver_deleted` flag is left exactly as it was, so
+their history stays intact.
 
 ---
 
@@ -503,6 +542,25 @@ backend/
     ├── test_db.py
     └── test_main.py
 ```
+
+### Module Responsibilities
+
+| Path | Responsible for |
+|------|------------------|
+| `main.py` | Entry point — top-level Login/Exit loop, routes into `admin_menu` or `user_menu` based on role after login |
+| `core/db.py` | Opens the PostgreSQL connection (reads `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`) |
+| `core/auth/login.py` | Verifies email + bcrypt password, checks `is_active`, returns the session's `user` tuple |
+| `core/auth/logout.py` | Ends the current session |
+| `core/permissions/roles.py` | Single source of truth for valid roles and their `can_mail`/`can_forward` permissions |
+| `core/crud/create.py` | `create_mail`, `forward_mail` — composing and forwarding mail |
+| `core/crud/read.py` | `inbox`, `sent_mails`, `open_mail`, `open_forward`, `via_mail`, `via_forward` — browsing and viewing mail/forwards |
+| `core/crud/update.py` | `reply_to_mail`, `reply_to_forward` — replying to a mail or to whoever forwarded something to you |
+| `core/crud/delete.py` | `delete_mail`, `delete_forward` — soft-deleting a single mail or forward for the current user |
+| `core/admin/create.py` | `create_user` — admin-only user creation, enforcing unique email, valid role, and the single-CEO rule |
+| `core/admin/read.py` | `list_users` — paginated admin view of all accounts |
+| `core/admin/delete.py` | `delete_user` — admin-only deactivation, cascading to the user's own mail/forward history |
+| `core/menus/user_menu.py` | Interactive menu for EMPLOYEE/MANAGER/CEO accounts |
+| `core/menus/admin_menu.py` | Interactive menu for ADMIN accounts |
 
 ---
 
@@ -730,8 +788,11 @@ Admins manage user accounts and don't participate in mail communication.
 - A user can never have more than one role (enforced structurally — `role`
   is a single column, validated on creation).
 - Emails must be unique across all users.
-- Deactivating a user does not delete or alter any mail/forward rows they
-  were involved in.
+- Only one `CEO` may exist in the system at a time — attempting to create a
+  second one (even after the first is deactivated) is rejected.
+- Deactivating a user cascades to their own mail/forward history (see
+  [Deactivating a User Cascades](#deactivating-a-user-cascades)) — it does
+  not touch or remove anything from the other party's side.
 
 ---
 
