@@ -83,7 +83,7 @@ def test_list_users_shows_deactivated_status(monkeypatch, capsys) -> None:
     with patch("core.admin.read.get_connection", return_value=mock_conn):
         list_users(admin_id=1)
 
-    assert "Status : DEACTIVATED" in capsys.readouterr().out
+    assert "Status : DELETED" in capsys.readouterr().out
 
 
 def test_list_users_pagination_next_then_back(monkeypatch) -> None:

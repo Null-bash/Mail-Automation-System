@@ -41,7 +41,7 @@ def delete_user(admin_id, user_id) -> None:
 
     if not user[0]:
 
-        print("\nUser is already deactivated!\n")
+        print("\nUser is already deleted\n")
 
         cur.close()
         conn.close()
@@ -52,6 +52,15 @@ def delete_user(admin_id, user_id) -> None:
         UPDATE users
         SET is_active=FALSE
         WHERE user_id=%s;
+        """,
+        (user_id,)
+    )
+
+    cur.execute(
+        """
+        DELETE FROM users
+        WHERE user_id=%s
+        AND role='CEO';
         """,
         (user_id,)
     )
@@ -101,4 +110,4 @@ def delete_user(admin_id, user_id) -> None:
     cur.close()
     conn.close()
 
-    print("\nUser deactivated successfully!\n")
+    print("\nUser deleted successfully!\n")

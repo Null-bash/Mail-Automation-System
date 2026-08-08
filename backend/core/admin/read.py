@@ -8,14 +8,19 @@ from core.db import get_connection
 
 
 def list_users(admin_id, page=0) -> None:
-    """Displays a paginated list of all user accounts.
+    """Display a paginated list of all user accounts.
 
     Args:
-        admin_id (str or int): The unique database ID of the admin viewing
-            the list. Not used in the query itself, but kept so this action
-            can be logged/audited later if needed.
-        page (int, optional): The current page index for pagination. Defaults to 0.
+        admin_id (str or int):
+            Unique ID of the admin viewing the users.
+            Currently not used in the query, but kept for future
+            logging/auditing functionality.
+
+        page (int, optional):
+            Current page index for pagination.
+            Defaults to 0.
     """
+
     PAGE_SIZE = 10
 
     while True:
@@ -34,7 +39,7 @@ def list_users(admin_id, page=0) -> None:
                 role,
                 is_active
             FROM users
-            ORDER BY created_at
+            ORDER BY created_at ASC, user_id ASC
             LIMIT %s OFFSET %s;
             """,
             (PAGE_SIZE + 1, offset)
@@ -42,25 +47,43 @@ def list_users(admin_id, page=0) -> None:
 
         rows = cur.fetchall()
 
-        has_next = len(rows) > PAGE_SIZE
-
-        users = rows[:PAGE_SIZE]
-
         cur.close()
         conn.close()
 
+        # We request one extra row to determine whether
+        # another page exists.
+        has_next = len(rows) > PAGE_SIZE
+
+        # Only show the requested page.
+        users = rows[:PAGE_SIZE]
+
         if not users:
+
             print("\nNo users found.\n")
+
             return
 
         print("\n========== USERS ==========\n")
 
         for index, user in enumerate(users, start=1):
 
-            print(f"{index}. {user[1]} ({user[2]})")
-            print(f"   ID     : {user[0]}")
-            print(f"   Role   : {user[3]}")
-            print(f"   Status : {'ACTIVE' if user[4] else 'DEACTIVATED'}")
+            user_id = user[0]
+            name = user[1]
+            email = user[2]
+            role = user[3]
+            is_active = user[4]
+
+            print(
+                f"{index}. {name} ({email})"
+            )
+
+            print(f"   ID     : {user_id}")
+            print(f"   Role   : {role}")
+
+            status = "ACTIVE" if is_active else "DELETED"
+
+            print(f"   Status : {status}")
+
             print()
 
         print("0. Back")
@@ -74,15 +97,17 @@ def list_users(admin_id, page=0) -> None:
         choice = input("> ").strip().upper()
 
         if choice == "0":
+
             return
 
         elif choice == "N" and has_next:
+
             page += 1
-            continue
 
         elif choice == "P" and page > 0:
+
             page -= 1
-            continue
 
         else:
-            print("Invalid Choice!")
+
+            print("\nInvalid Choice!\n")

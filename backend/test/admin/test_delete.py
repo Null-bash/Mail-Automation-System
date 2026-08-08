@@ -49,7 +49,7 @@ def test_delete_user_not_found(capsys) -> None:
     mock_conn.commit.assert_not_called()
 
 
-def test_delete_user_already_deactivated(capsys) -> None:
+def test_delete_user_already_deleted(capsys) -> None:
     """Tests that deactivation aborts if the user is already inactive.
 
     Args:
@@ -60,7 +60,7 @@ def test_delete_user_already_deactivated(capsys) -> None:
     with patch("core.admin.delete.get_connection", return_value=mock_conn):
         delete_user(admin_id=1, user_id=5)
 
-    assert "already deactivated" in capsys.readouterr().out
+    assert "already deleted" in capsys.readouterr().out
     mock_cur.close.assert_called_once()
     mock_conn.close.assert_called_once()
     mock_conn.commit.assert_not_called()
@@ -89,8 +89,8 @@ def test_delete_user_success(capsys) -> None:
     queries = [call[0][0] for call in calls]
     params_list = [call[0][1] for call in calls]
 
-    # 1 SELECT (is_active) + 5 UPDATEs: users, mails x2, forwards x2
-    assert mock_cur.execute.call_count == 6
+    # 1 SELECT (is_active) + 6 UPDATEs: users, mails x2, forwards x2 , CEO delete
+    assert mock_cur.execute.call_count == 7
 
     users_update = next(q for q in queries if "UPDATE users" in q)
     assert "is_active=FALSE" in users_update
@@ -115,7 +115,7 @@ def test_delete_user_success(capsys) -> None:
     mock_conn.commit.assert_called_once()
     mock_cur.close.assert_called_once()
     mock_conn.close.assert_called_once()
-    assert "User deactivated successfully!" in capsys.readouterr().out
+    assert "User deleted successfully!" in capsys.readouterr().out
 
 
 def test_delete_user_select_queries_correct_user_id(monkeypatch) -> None:
