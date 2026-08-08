@@ -56,6 +56,46 @@ def delete_user(admin_id, user_id) -> None:
         (user_id,)
     )
 
+    # Cascade the soft-delete: clear this user's own view of everything
+    # they sent or received, on both mails and forwards. The other party
+    # in each of these keeps their own copy untouched — this only flips
+    # this user's side of the flag, same as if they'd deleted it themselves.
+    cur.execute(
+        """
+        UPDATE mails
+        SET sender_deleted=TRUE
+        WHERE sender_id=%s;
+        """,
+        (user_id,)
+    )
+
+    cur.execute(
+        """
+        UPDATE mails
+        SET receiver_deleted=TRUE
+        WHERE receiver_id=%s;
+        """,
+        (user_id,)
+    )
+
+    cur.execute(
+        """
+        UPDATE forwards
+        SET sender_deleted=TRUE
+        WHERE sender_id=%s;
+        """,
+        (user_id,)
+    )
+
+    cur.execute(
+        """
+        UPDATE forwards
+        SET receiver_deleted=TRUE
+        WHERE receiver_id=%s;
+        """,
+        (user_id,)
+    )
+
     conn.commit()
 
     cur.close()

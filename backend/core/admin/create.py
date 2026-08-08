@@ -56,6 +56,31 @@ def create_user(admin_id, name, email, password, role) -> None:
     conn = get_connection()
     cur = conn.cursor()
 
+    # Enforce the single-CEO rule: refuse to create another CEO if one
+    # already exists in the system, whether active or deactivated.
+    if role == "CEO":
+
+        cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM users
+            WHERE role='CEO';
+            """
+        )
+
+        ceo_count = cur.fetchone()[0]
+
+        if ceo_count > 0:
+
+            print(
+                "\nA CEO already exists! Only one CEO "
+                "is allowed in the system.\n"
+            )
+
+            cur.close()
+            conn.close()
+            return
+
     # Enforce uniqueness: refuse to create a user that already exists
     cur.execute(
         """

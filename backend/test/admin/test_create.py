@@ -2,7 +2,8 @@
 
 This test suite uses pytest and unittest.mock to verify the behavior of
 `create_user`, including input validation, role validation, email
-uniqueness enforcement, password hashing, and successful account creation.
+uniqueness enforcement, the single-CEO rule, password hashing, and
+successful account creation.
 """
 
 from unittest.mock import MagicMock, patch
@@ -295,6 +296,10 @@ def test_create_user_password_never_stored_in_plaintext(monkeypatch) -> None:
 def test_create_user_is_active_defaults_true_via_query(monkeypatch) -> None:
     """Tests that the INSERT statement hardcodes is_active as TRUE for new
     users (checked via the query text, since it's not a bound parameter).
+
+    Uses a non-CEO role deliberately, so this stays focused on is_active
+    only and doesn't also exercise the single-CEO check (see the dedicated
+    CEO tests below for that).
     """
     mock_conn, mock_cur = make_mock_conn(fetchone_return=None)
 
@@ -306,9 +311,121 @@ def test_create_user_is_active_defaults_true_via_query(monkeypatch) -> None:
             name="New User",
             email="new@example.com",
             password="pw123",
-            role="CEO"
+            role="EMPLOYEE"
         )
 
     insert_call = mock_cur.execute.call_args_list[-1]
     query, _ = insert_call[0]
     assert "TRUE" in query
+
+
+# ---------------------------
+# single-CEO rule
+# ---------------------------
+
+def test_create_user_ceo_blocked_when_ceo_exists(capsys) -> None:
+    """Tests that creating a CEO is rejected if a CEO already exists.
+
+    The rejection is based on any CEO row existing at all (checked via
+    `role='CEO'` with no active/inactive filter), so this also covers the
+    case where the existing CEO has since been deactivated.
+
+    Args:
+        capsys (pytest.CaptureFixture): Pytest fixture to capture stdout/stderr.
+    """
+    mock_conn, mock_cur = make_mock_conn(fetchone_return=None)
+    mock_cur.fetchone.side_effect = [(1,)]  # COUNT(*) WHERE role='CEO' -> 1 existing
+
+    with patch("core.admin.create.get_connection", return_value=mock_conn), \
+         patch("core.admin.create.ROLE_PERMISSIONS", SAMPLE_ROLES):
+        create_user(
+            admin_id=1,
+            name="Second CEO",
+            email="ceo2@example.com",
+            password="pw123",
+            role="CEO"
+        )
+
+    output = capsys.readouterr().out
+    assert "CEO already exists" in output
+
+    # Only the CEO-count SELECT should have run — no uniqueness check,
+    # and no INSERT.
+    assert mock_cur.execute.call_count == 1
+    mock_conn.commit.assert_not_called()
+    mock_cur.close.assert_called_once()
+    mock_conn.close.assert_called_once()
+
+
+def test_create_user_ceo_count_query_has_no_active_filter(monkeypatch) -> None:
+    """Tests that the CEO-count check counts every CEO row (active or
+    deactivated), not just active ones — a deactivated CEO still blocks
+    creating a new one.
+    """
+    mock_conn, mock_cur = make_mock_conn(fetchone_return=None)
+    mock_cur.fetchone.side_effect = [(1,)]
+
+    with patch("core.admin.create.get_connection", return_value=mock_conn), \
+         patch("core.admin.create.ROLE_PERMISSIONS", SAMPLE_ROLES):
+        create_user(
+            admin_id=1,
+            name="Second CEO",
+            email="ceo2@example.com",
+            password="pw123",
+            role="CEO"
+        )
+
+    count_call = mock_cur.execute.call_args_list[0]
+    query = count_call[0][0]
+    assert "role='CEO'" in query
+    assert "is_active" not in query
+    # No %s placeholder in this query, so execute() was called with just
+    # the query string — no params tuple.
+    assert len(count_call[0]) == 1
+
+
+def test_create_user_ceo_allowed_when_no_ceo_exists(monkeypatch) -> None:
+    """Tests that creating a CEO succeeds when no CEO currently exists.
+    """
+    mock_conn, mock_cur = make_mock_conn(fetchone_return=None)
+    mock_cur.fetchone.side_effect = [(0,), None]  # no CEO yet, email not taken
+
+    with patch("core.admin.create.get_connection", return_value=mock_conn), \
+         patch("core.admin.create.ROLE_PERMISSIONS", SAMPLE_ROLES), \
+         patch("core.admin.create.bcrypt.hashpw", return_value=b"hashed"):
+        create_user(
+            admin_id=1,
+            name="First CEO",
+            email="ceo@example.com",
+            password="pw123",
+            role="CEO"
+        )
+
+    insert_call = mock_cur.execute.call_args_list[-1]
+    query, params = insert_call[0]
+    assert "INSERT INTO users" in query
+    assert params == ("First CEO", "ceo@example.com", "hashed", "CEO")
+
+    mock_conn.commit.assert_called_once()
+    mock_cur.close.assert_called_once()
+    mock_conn.close.assert_called_once()
+
+
+def test_create_user_non_ceo_role_skips_ceo_check(monkeypatch) -> None:
+    """Tests that the CEO-count query never runs for non-CEO roles — only
+    the uniqueness SELECT and the INSERT should fire.
+    """
+    mock_conn, mock_cur = make_mock_conn(fetchone_return=None)
+
+    with patch("core.admin.create.get_connection", return_value=mock_conn), \
+         patch("core.admin.create.ROLE_PERMISSIONS", SAMPLE_ROLES), \
+         patch("core.admin.create.bcrypt.hashpw", return_value=b"hashed"):
+        create_user(
+            admin_id=1,
+            name="New Manager",
+            email="manager@example.com",
+            password="pw123",
+            role="MANAGER"
+        )
+
+    assert mock_cur.execute.call_count == 2
