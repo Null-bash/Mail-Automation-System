@@ -64,9 +64,10 @@ def create_mail(sender_id, sender_role) -> None:
             user_id,
             role
         FROM users
-        WHERE email=%s;
+        WHERE email=%s
+        AND is_active=TRUE;
         """,
-        (receiver_email,)
+        (receiver_email.lower().strip(),)
     )
 
     receiver = cur.fetchone()
@@ -178,9 +179,10 @@ def forward_mail(mail_id, sender_id, sender_role) -> None:
         """
         SELECT user_id, role
         FROM users
-        WHERE email=%s;
+        WHERE email=%s
+        AND is_active=TRUE;
         """,
-        (receiver_email,)
+        (receiver_email.lower().strip(),)
     )
 
     receiver = cur.fetchone()

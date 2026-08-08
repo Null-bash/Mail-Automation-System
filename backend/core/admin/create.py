@@ -64,7 +64,8 @@ def create_user(admin_id, name, email, password, role) -> None:
             """
             SELECT COUNT(*)
             FROM users
-            WHERE role='CEO';
+            WHERE role='CEO'
+            AND is_active=TRUE;
             """
         )
 
@@ -86,9 +87,10 @@ def create_user(admin_id, name, email, password, role) -> None:
         """
         SELECT user_id
         FROM users
-        WHERE email=%s;
+        WHERE email=%s
+        AND is_active=TRUE;
         """,
-        (email,)
+        (email.lower().strip(),)
     )
 
     existing = cur.fetchone()

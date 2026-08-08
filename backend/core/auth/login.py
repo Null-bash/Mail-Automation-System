@@ -35,9 +35,10 @@ def login() -> tuple | None:
         """
         SELECT *
         FROM users
-        WHERE email=%s;
+        WHERE email=%s
+        AND is_active=TRUE;
         """,
-        (email,)
+        (email.lower().strip(),)
     )
 
     user = cur.fetchone()

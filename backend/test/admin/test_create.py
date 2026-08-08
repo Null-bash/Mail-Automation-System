@@ -378,7 +378,7 @@ def test_create_user_ceo_count_query_has_no_active_filter(monkeypatch) -> None:
     count_call = mock_cur.execute.call_args_list[0]
     query = count_call[0][0]
     assert "role='CEO'" in query
-    assert "is_active" not in query
+    assert "is_active=TRUE" in query
     # No %s placeholder in this query, so execute() was called with just
     # the query string — no params tuple.
     assert len(count_call[0]) == 1

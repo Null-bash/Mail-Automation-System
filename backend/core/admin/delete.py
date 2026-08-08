@@ -22,7 +22,7 @@ def delete_user(admin_id, user_id) -> None:
 
     cur.execute(
         """
-        SELECT is_active
+        SELECT is_active, role
         FROM users
         WHERE user_id=%s;
         """,
@@ -38,7 +38,7 @@ def delete_user(admin_id, user_id) -> None:
         cur.close()
         conn.close()
         return
-
+    
     if not user[0]:
 
         print("\nUser is already deleted\n")
@@ -46,24 +46,25 @@ def delete_user(admin_id, user_id) -> None:
         cur.close()
         conn.close()
         return
+    
+    if user[1] == "ADMIN":
 
-    cur.execute(
-        """
-        UPDATE users
-        SET is_active=FALSE
-        WHERE user_id=%s;
-        """,
-        (user_id,)
-    )
+        print("\nCannot delete an admin user!\n")
 
-    cur.execute(
-        """
-        DELETE FROM users
-        WHERE user_id=%s
-        AND role='CEO';
-        """,
-        (user_id,)
-    )
+        cur.close()
+        conn.close()
+        return
+    
+    elif user[1] != "ADMIN":
+        cur.execute(
+            """
+            UPDATE users
+            SET is_active=FALSE
+            WHERE user_id=%s;
+            """,
+            (user_id,)
+        )
+
 
     # Cascade the soft-delete: clear this user's own view of everything
     # they sent or received, on both mails and forwards. The other party
